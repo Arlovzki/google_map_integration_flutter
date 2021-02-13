@@ -1,0 +1,26 @@
+name: custom_google_place_widget
+description: A Flutter plugin which provides custom widget using Google Maps widget inspired by "google_maps_place_picker" && "place_picker".
+version: 1.0.0
+#homepage: https://github.com/fysoul17/google_maps_place_picker
+
+environment:
+  sdk: ">=2.7.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  google_maps_flutter: ^1.0.6
+  geolocator: ^6.0.0+4
+  permission_handler: ^5.0.1+1
+  provider: ^4.0.1
+  google_maps_webservice: ^0.0.16
+  tuple: ^1.0.3
+  http: ^0.12.0+4
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
