@@ -30,3 +30,11 @@ String getName(String address) {
   }
   return "Unnamed Place";
 }
+
+String getCountry(String address) {
+  if (address != null) {
+    var split = address.split(',');
+    return split.last;
+  }
+  return "Unnamed Country";
+}

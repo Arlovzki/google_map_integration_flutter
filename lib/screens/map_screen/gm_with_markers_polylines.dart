@@ -43,6 +43,7 @@ class _GoogleMapWithMarkersPolylinesState
     setSourceAndDestinationIcons();
     super.initState();
   }
+  
 
   void onMapCreated(GoogleMapController controller) {
     _controller.complete(controller);
@@ -55,15 +56,10 @@ class _GoogleMapWithMarkersPolylinesState
     setState(() {
       // source pin
       _markers.add(Marker(
-          markerId: MarkerId("Driver"),
-          position: sourceLocation,
-          icon: sourceIcon,
-          draggable: true,
-          onDragEnd: (value) {
-            setState(() {
-              polylineCoordinates.add(value);
-            });
-          }));
+        markerId: MarkerId("Driver"),
+        position: sourceLocation,
+        icon: sourceIcon,
+      ));
       // destination pin
       _markers.add(Marker(
         markerId: MarkerId("Destination"),

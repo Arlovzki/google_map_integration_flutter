@@ -1,3 +1,4 @@
+import 'package:custom_place_picker/custom_place_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_map_flutter/blocs/google_map/google_map_bloc.dart';
@@ -6,6 +7,7 @@ import 'package:google_map_flutter/constants/app_router.dart';
 import 'package:google_map_flutter/elements/custom_primary_button.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_place_picker/google_maps_place_picker.dart';
+import 'package:google_maps_webservice/places.dart';
 import 'package:ndialog/ndialog.dart';
 import 'package:place_picker/place_picker.dart' as place_picker2;
 
@@ -35,7 +37,8 @@ class _HomeScreenState extends State<HomeScreen> {
               CustomPrimaryButton(
                 onPressed: () {
                   BlocProvider.of<GoogleMapBloc>(context).add(GetGoogleMap());
-                  Navigator.pushNamed(context, AppRouter.googleMap);
+                  Navigator.pushNamed(
+                      context, AppRouter.googleMapWithMarkersPolylines);
                 },
                 padding: EdgeInsets.only(bottom: 8.0),
                 buttonColor: Color(0xFF4285F4),
@@ -45,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Padding(
                       padding: EdgeInsets.only(right: 8.0),
                       child: Icon(
-                        Icons.map,
+                        Icons.maps_ugc,
                         color: Colors.white,
                       ),
                     ),
@@ -60,38 +63,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               CustomPrimaryButton(
                 onPressed: () {
-                  BlocProvider.of<GoogleMapBloc>(context).add(GetGoogleMap());
-                  Navigator.pushNamed(
-                      context, AppRouter.googleMapWithMarkersPolylines);
-                },
-                padding: EdgeInsets.only(bottom: 8.0),
-                buttonColor: Color(0xFFDB4437),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(right: 8.0),
-                      child: Icon(
-                        Icons.maps_ugc,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      'Google Map w/ Markers and Polylines',
-                      style: TextStyle(
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              CustomPrimaryButton(
-                onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => PlacePicker(
+                      builder: (context) => CustomPlacePicker(
                         apiKey: Config.apiKey, // Put YOUR OWN KEY here.
+                        usePlaceDetailSearch: true,
+                        forceSearchOnZoomChanged: true,
+                        showNearbyPlaces: true,
+                        region: "ph",
+                        autocompleteComponents: [Component("country", "ph")],
                         onPlacePicked: (result) {
                           print(result.formattedAddress);
                           Navigator.of(context).pop();
@@ -114,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
                 padding: EdgeInsets.only(bottom: 8.0),
-                buttonColor: Color(0xFFF4B400),
+                buttonColor: Color(0xFFDB4437),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -126,42 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Text(
-                      'Google Map Picker',
-                      style: TextStyle(
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              CustomPrimaryButton(
-                onPressed: () async {
-                  place_picker2.LocationResult result =
-                      await Navigator.of(context).push(MaterialPageRoute(
-                          builder: (context) => place_picker2.PlacePicker(
-                                Config.apiKey,
-                                displayLocation: LatLng(14.3710, 120.8241),
-                              )));
-
-                  _showDialog(
-                      name: result.name,
-                      location: result.formattedAddress,
-                      latLng: result.latLng);
-                },
-                padding: EdgeInsets.only(bottom: 8.0),
-                buttonColor: Color(0xFF0F9D58),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(right: 8.0),
-                      child: Icon(
-                        Icons.add_location_alt,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      'Google Map Place Picker',
+                      'Custom Google Map Picker',
                       style: TextStyle(
                         color: Colors.white,
                       ),

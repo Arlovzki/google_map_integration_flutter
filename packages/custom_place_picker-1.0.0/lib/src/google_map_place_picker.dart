@@ -19,6 +19,7 @@ import 'package:tuple/tuple.dart';
 
 import 'components/nearbyPlaceItem.dart';
 import 'components/selectPlaceAction.dart';
+import 'controllers/get_alpha_code.dart';
 
 typedef SelectedPlaceWidgetBuilder = Widget Function(
   BuildContext context,
@@ -57,10 +58,12 @@ class GoogleMapPlacePicker extends StatelessWidget {
     this.hidePlaceDetailsWhenDraggingPin,
     this.showNearbyPlaces,
     this.nearbyPlaceRadius,
+    this.region,
   }) : super(key: key);
 
   final LatLng initialTarget;
   final GlobalKey appBarKey;
+  final String region;
 
   final SelectedPlaceWidgetBuilder selectedPlaceWidgetBuilder;
   final PinBuilder pinBuilder;
@@ -117,49 +120,53 @@ class GoogleMapPlacePicker extends StatelessWidget {
       provider.placeSearchingState = SearchingState.Idle;
       return;
     }
+    if (provider.nearbyPlaceTapped == false) {
+      if (usePlaceDetailSearch) {
+        final PlacesDetailsResponse detailResponse =
+            await provider.places.getDetailsByPlaceId(
+          response.results[0].placeId,
+          language: language,
+        );
 
-    if (usePlaceDetailSearch) {
-      final PlacesDetailsResponse detailResponse =
-          await provider.places.getDetailsByPlaceId(
-        response.results[0].placeId,
-        language: language,
-      );
-
-      if (detailResponse.errorMessage?.isNotEmpty == true ||
-          detailResponse.status == "REQUEST_DENIED") {
-        print("Fetching details by placeId Error: " +
-            detailResponse.errorMessage);
-        if (onSearchFailed != null) {
-          onSearchFailed(detailResponse.status);
+        if (detailResponse.errorMessage?.isNotEmpty == true ||
+            detailResponse.status == "REQUEST_DENIED") {
+          print("Fetching details by placeId Error: " +
+              detailResponse.errorMessage);
+          if (onSearchFailed != null) {
+            onSearchFailed(detailResponse.status);
+          }
+          provider.placeSearchingState = SearchingState.Idle;
+          return;
         }
-        provider.placeSearchingState = SearchingState.Idle;
-        return;
-      }
 
-      provider.selectedPlace =
-          PickResult.fromPlaceDetailResult(detailResponse.result);
-    } else {
-      provider.selectedPlace =
-          PickResult.fromGeocodingResult(response.results[0]);
+        provider.selectedPlace =
+            PickResult.fromPlaceDetailResult(detailResponse.result);
+      } else {
+        provider.selectedPlace =
+            PickResult.fromGeocodingResult(response.results[0]);
+      }
     }
 
     //* adding nearby place result
-
     if (showNearbyPlaces) {
-      Location location = Location(provider.selectedPlace.geometry.location.lat,
-          provider.selectedPlace.geometry.location.lng);
-
-      var nearbyPlaceResult = await provider.places
-          .searchNearbyWithRadius(location, nearbyPlaceRadius);
-      List<PickResult> pickResults = [];
-      for (PlacesSearchResult place in nearbyPlaceResult.results) {
-        pickResults.add(PickResult.fromPlacesSearchResponse(place));
-      }
-
-      provider.nearbyPlaces = pickResults;
+      await _showNearbyPlaces(provider);
     }
 
     provider.placeSearchingState = SearchingState.Idle;
+  }
+
+  Future<void> _showNearbyPlaces(PlaceProvider provider) async {
+    Location location = Location(provider.selectedPlace.geometry.location.lat,
+        provider.selectedPlace.geometry.location.lng);
+
+    var nearbyPlaceResult = await provider.places
+        .searchNearbyWithRadius(location, nearbyPlaceRadius);
+    List<PickResult> pickResults = [];
+    for (PlacesSearchResult place in nearbyPlaceResult.results) {
+      pickResults.add(PickResult.fromPlacesSearchResponse(place));
+    }
+
+    provider.nearbyPlaces = pickResults;
   }
 
   @override
@@ -182,72 +189,78 @@ class GoogleMapPlacePicker extends StatelessWidget {
           CameraPosition initialCameraPosition =
               CameraPosition(target: initialTarget, zoom: 15);
 
-          return GoogleMap(
-            myLocationButtonEnabled: false,
-            compassEnabled: false,
-            mapToolbarEnabled: false,
-            initialCameraPosition: initialCameraPosition,
-            mapType: data,
-            myLocationEnabled: true,
-            onMapCreated: (GoogleMapController controller) {
-              provider.mapController = controller;
-              provider.setCameraPosition(null);
-              provider.pinState = PinState.Idle;
-
-              // When select initialPosition set to true.
-              if (selectInitialPosition) {
-                provider.setCameraPosition(initialCameraPosition);
-                _searchByCameraLocation(provider);
-              }
+          return Listener(
+            onPointerDown: (value) {
+              provider.nearbyPlaceTapped = false;
             },
-            onCameraIdle: () {
-              if (provider.isAutoCompleteSearching) {
-                provider.isAutoCompleteSearching = false;
+            child: GoogleMap(
+              myLocationButtonEnabled: false,
+              compassEnabled: false,
+              mapToolbarEnabled: false,
+              initialCameraPosition: initialCameraPosition,
+              mapType: data,
+              myLocationEnabled: true,
+              onMapCreated: (GoogleMapController controller) {
+                provider.mapController = controller;
+                provider.setCameraPosition(null);
                 provider.pinState = PinState.Idle;
-                return;
-              }
 
-              // Perform search only if the setting is to true.
-              if (usePinPointingSearch) {
-                // Search current camera location only if camera has moved (dragged) before.
-                if (provider.pinState == PinState.Dragging) {
-                  // Cancel previous timer.
-                  if (provider.debounceTimer?.isActive ?? false) {
-                    provider.debounceTimer.cancel();
-                  }
-                  provider.debounceTimer =
-                      Timer(Duration(milliseconds: debounceMilliseconds), () {
-                    _searchByCameraLocation(provider);
-                  });
+                // When select initialPosition set to true.
+                if (selectInitialPosition) {
+                  provider.setCameraPosition(initialCameraPosition);
+                  _searchByCameraLocation(provider);
                 }
-              }
+              },
 
-              provider.pinState = PinState.Idle;
-            },
-            onCameraMoveStarted: () {
-              provider.setPrevCameraPosition(provider.cameraPosition);
+              onCameraIdle: () {
+                if (provider.isAutoCompleteSearching) {
+                  provider.isAutoCompleteSearching = false;
+                  provider.pinState = PinState.Idle;
+                  return;
+                }
 
-              // Cancel any other timer.
-              provider.debounceTimer?.cancel();
+                // Perform search only if the setting is to true.
+                if (usePinPointingSearch) {
+                  // Search current camera location only if camera has mov  ed (dragged) before.
+                  if (provider.pinState == PinState.Dragging) {
+                    // Cancel previous timer.
+                    if (provider.debounceTimer?.isActive ?? false) {
+                      provider.debounceTimer.cancel();
+                    }
+                    provider.debounceTimer =
+                        Timer(Duration(milliseconds: debounceMilliseconds), () {
+                      _searchByCameraLocation(provider);
+                    });
+                  }
+                }
 
-              // Update state, dismiss keyboard and clear text.
-              provider.pinState = PinState.Dragging;
+                provider.pinState = PinState.Idle;
+              },
+              onCameraMoveStarted: () {
+                provider.setPrevCameraPosition(provider.cameraPosition);
 
-              // Begins the search state if the hide details is enabled
-              if (this.hidePlaceDetailsWhenDraggingPin) {
-                provider.placeSearchingState = SearchingState.Searching;
-              }
+                // Cancel any other timer.
+                provider.debounceTimer?.cancel();
 
-              onMoveStart();
-            },
-            onCameraMove: (CameraPosition position) {
-              provider.setCameraPosition(position);
-            },
-            // gestureRecognizers make it possible to navigate the map when it's a
-            // child in a scroll view e.g ListView, SingleChildScrollView...
-            gestureRecognizers: Set()
-              ..add(Factory<EagerGestureRecognizer>(
-                  () => EagerGestureRecognizer())),
+                // Update state, dismiss keyboard and clear text.
+                provider.pinState = PinState.Dragging;
+
+                // Begins the search state if the hide details is enabled
+                if (this.hidePlaceDetailsWhenDraggingPin) {
+                  provider.placeSearchingState = SearchingState.Searching;
+                }
+
+                onMoveStart();
+              },
+              onCameraMove: (CameraPosition position) {
+                provider.setCameraPosition(position);
+              },
+              // gestureRecognizers make it possible to navigate the map when it's a
+              // child in a scroll view e.g ListView, SingleChildScrollView...
+              gestureRecognizers: Set()
+                ..add(Factory<EagerGestureRecognizer>(
+                    () => EagerGestureRecognizer())),
+            ),
           );
         });
   }
@@ -365,45 +378,101 @@ class GoogleMapPlacePicker extends StatelessWidget {
       SearchingState state,
       List<PickResult> nearbyPlaces,
       PlaceProvider provider) {
+    //* Mediaquery variables
+    var height = MediaQuery.of(context).size.height;
+    var width = MediaQuery.of(context).size.width;
+
     return FloatingCard(
-      bottomPosition: MediaQuery.of(context).size.height * 0.02,
-      leftPosition: MediaQuery.of(context).size.width * 0.025,
-      rightPosition: MediaQuery.of(context).size.width * 0.025,
-      width: MediaQuery.of(context).size.width * 0.9,
-      height: MediaQuery.of(context).size.height * 0.45,
-      borderRadius: BorderRadius.circular(12.0),
-      elevation: 4.0,
-      color: Theme.of(context).cardColor,
-      child: state == SearchingState.Searching
-          ? _buildLoadingIndicator()
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SelectPlaceAction(
-                    provider.selectedPlace.name ?? "Walang nakuhang name", () {
-                  onPlacePicked(provider.selectedPlace);
-                }, "Tap to select this location.."),
-                Divider(height: 8),
-                Padding(
-                  child: Text("Nearby Places", style: TextStyle(fontSize: 16)),
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                ),
-                Expanded(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.only(top: 0),
-                    children: nearbyPlaces.map((item) {
-                      return NearbyPlaceItem(item, () async {
-                        await _moveTo(item.geometry.location.lat,
-                            item.geometry.location.lng, provider);
-                        provider.selectedPlace = item;
-                        // provider.selectedPlace = item;
-                      });
-                    }).toList(),
-                  ),
-                ),
-              ],
+        bottomPosition: height * 0.02,
+        leftPosition: width * 0.025,
+        rightPosition: width * 0.025,
+        width: width * 0.9,
+        height: state == SearchingState.Searching
+            ? height * 0.2
+            : showNearbyPlaces
+                ? height * 0.45
+                : height * 0.1,
+        borderRadius: BorderRadius.circular(12.0),
+        elevation: 4.0,
+        color: Theme.of(context).cardColor,
+        child: state == SearchingState.Searching
+            ? _buildLoadingIndicator()
+            : showNearbyPlaces
+                ? _buildNearbyPlacePicker(context, provider, nearbyPlaces)
+                : _buildSelectionPlacePicker(context, provider));
+  }
+
+  Widget _buildNearbyPlacePicker(BuildContext context, PlaceProvider provider,
+      List<PickResult> nearbyPlaces) {
+    return Container(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectPlaceAction(provider.selectedPlace.name, () async {
+            String code = await GetAlpha2Code.getCode(
+                getCountry(provider.selectedPlace.formattedAddress));
+            print("code: $code and region: $region");
+
+            if (code != region) {
+              provider.regionOutOfBounds = true;
+              _buildShowOutBoundDialog(context, provider);
+            } else {
+              onPlacePicked(provider.selectedPlace);
+            }
+          }, "Tap to select this location.."),
+          Divider(height: 8),
+          Padding(
+            child: Text("Nearby Places", style: TextStyle(fontSize: 16)),
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          ),
+          Expanded(
+            child: ListView(
+              shrinkWrap: true,
+              padding: EdgeInsets.only(top: 0),
+              children: nearbyPlaces.map((item) {
+                return NearbyPlaceItem(item, () async {
+                  final PlacesDetailsResponse detailResponse =
+                      await provider.places.getDetailsByPlaceId(
+                    item.placeId,
+                    language: language,
+                  );
+
+                  provider.selectedPlace =
+                      PickResult.fromPlaceDetailResult(detailResponse.result);
+
+                  //* set to true to cancel search camera location
+                  provider.nearbyPlaceTapped = true;
+
+                  _showNearbyPlaces(provider);
+
+                  await _moveTo(provider.selectedPlace.geometry.location.lat,
+                      provider.selectedPlace.geometry.location.lng, provider);
+
+                  // provider.selectedPlace = item;
+                });
+              }).toList(),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectionPlacePicker(
+      BuildContext context, PlaceProvider provider) {
+    return Container(
+      child: SelectPlaceAction(provider.selectedPlace.name, () async {
+        String code = await GetAlpha2Code.getCode(
+            getCountry(provider.selectedPlace.formattedAddress));
+        print("code: $code and region: $region");
+
+        if (code != region) {
+          provider.regionOutOfBounds = true;
+          _buildShowOutBoundDialog(context, provider);
+        } else {
+          onPlacePicked(provider.selectedPlace);
+        }
+      }, "Tap to select this location.."),
     );
   }
 
@@ -419,35 +488,6 @@ class GoogleMapPlacePicker extends StatelessWidget {
       ),
     );
   }
-
-  // Widget _buildSelectionDetails(BuildContext context, PickResult result) {
-  //   return Container(
-  //     margin: EdgeInsets.all(10),
-  //     child: Column(
-  //       children: <Widget>[
-  //         Text(
-  //           result.formattedAddress,
-  //           style: TextStyle(fontSize: 18),
-  //           textAlign: TextAlign.center,
-  //         ),
-  //         SizedBox(height: 10),
-  //         RaisedButton(
-  //           padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-  //           child: Text(
-  //             "Select here",
-  //             style: TextStyle(fontSize: 16),
-  //           ),
-  //           shape: RoundedRectangleBorder(
-  //             borderRadius: BorderRadius.circular(4.0),
-  //           ),
-  //           onPressed: () {
-  //             onPlacePicked(result);
-  //           },
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _buildMapIcons(BuildContext context) {
     final RenderBox appBarRenderBox =
@@ -499,11 +539,40 @@ class GoogleMapPlacePicker extends StatelessWidget {
 
     if (controller == null) return;
 
+    var position = CameraPosition(
+      target: LatLng(latitude, longitude),
+      zoom: 16,
+    );
+
     await controller.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: LatLng(latitude, longitude),
-          zoom: 16,
+      CameraUpdate.newCameraPosition(position),
+    );
+    provider.setCameraPosition(position);
+
+    // provider.nearbyPlaceTapped = false;
+  }
+
+  _buildShowOutBoundDialog(BuildContext context, PlaceProvider provider) {
+    return showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (context) => WillPopScope(
+        onWillPop: () async {
+          provider.regionOutOfBounds = false;
+          return true;
+        },
+        child: AlertDialog(
+          title: Text("Location Out of Bounds"),
+          content: Text(
+              "You can only pick a location based on what the value of [region] parameter. "),
+          actions: [
+            FlatButton(
+                onPressed: () {
+                  provider.regionOutOfBounds = false;
+                  Navigator.pop(context);
+                },
+                child: Text("Okay"))
+          ],
         ),
       ),
     );

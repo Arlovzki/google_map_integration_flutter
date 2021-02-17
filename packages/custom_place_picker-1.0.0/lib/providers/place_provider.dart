@@ -94,6 +94,20 @@ class PlaceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _nearbyPlaceTapped = false;
+  bool get nearbyPlaceTapped => _nearbyPlaceTapped;
+  set nearbyPlaceTapped(bool tapped) {
+    _nearbyPlaceTapped = tapped;
+    notifyListeners();
+  }
+
+  bool _regionOutOfBounds = false;
+  bool get regionOutOfBounds => _regionOutOfBounds;
+  set regionOutOfBounds(bool value) {
+    _regionOutOfBounds = value;
+    notifyListeners();
+  }
+
   SearchingState _placeSearchingState = SearchingState.Idle;
   SearchingState get placeSearchingState => _placeSearchingState;
   set placeSearchingState(SearchingState newState) {

@@ -9,6 +9,7 @@ import 'package:custom_place_picker/src/autocomplete_search.dart';
 import 'package:custom_place_picker/src/controllers/autocomplete_search_controller.dart';
 import 'package:custom_place_picker/src/google_map_place_picker.dart';
 import 'package:custom_place_picker/src/utils/uuid.dart';
+import 'package:google_maps_webservice/geocoding.dart';
 import 'package:google_maps_webservice/places.dart';
 import 'package:http/http.dart';
 import 'package:provider/provider.dart';
@@ -292,6 +293,10 @@ class _CustomPlacePickerState extends State<CustomPlacePicker> {
     }
 
     provider.selectedPlace = PickResult.fromPlaceDetailResult(response.result);
+    //* adding nearby place result
+    if (widget.showNearbyPlaces) {
+      await _showNearbyPlaces();
+    }
 
     // Prevents searching again by camera movement.
     provider.isAutoCompleteSearching = true;
@@ -300,6 +305,20 @@ class _CustomPlacePickerState extends State<CustomPlacePicker> {
         provider.selectedPlace.geometry.location.lng);
 
     provider.placeSearchingState = SearchingState.Idle;
+  }
+
+  Future<void> _showNearbyPlaces() async {
+    Location location = Location(provider.selectedPlace.geometry.location.lat,
+        provider.selectedPlace.geometry.location.lng);
+
+    var nearbyPlaceResult = await provider.places
+        .searchNearbyWithRadius(location, widget.nearbyPlaceRadius);
+    List<PickResult> pickResults = [];
+    for (PlacesSearchResult place in nearbyPlaceResult.results) {
+      pickResults.add(PickResult.fromPlacesSearchResponse(place));
+    }
+
+    provider.nearbyPlaces = pickResults;
   }
 
   _moveTo(double latitude, double longitude) async {
@@ -318,6 +337,20 @@ class _CustomPlacePickerState extends State<CustomPlacePicker> {
 
   _moveToCurrentPosition() async {
     if (provider.currentPosition != null) {
+      final GeocodingResponse response =
+          await provider.geocoding.searchByLocation(
+        Location(provider.currentPosition.latitude,
+            provider.currentPosition.longitude),
+        language: widget.autocompleteLanguage,
+      );
+      final PlacesDetailsResponse detailResponse =
+          await provider.places.getDetailsByPlaceId(
+        response.results[0].placeId,
+        language: widget.autocompleteLanguage,
+      );
+      provider.selectedPlace =
+          PickResult.fromPlaceDetailResult(detailResponse.result);
+
       await _moveTo(provider.currentPosition.latitude,
           provider.currentPosition.longitude);
     }
@@ -373,6 +406,7 @@ class _CustomPlacePickerState extends State<CustomPlacePicker> {
       hidePlaceDetailsWhenDraggingPin: widget.hidePlaceDetailsWhenDraggingPin,
       showNearbyPlaces: widget.showNearbyPlaces,
       nearbyPlaceRadius: widget.nearbyPlaceRadius,
+      region: widget.region.toUpperCase(),
       onToggleMapType: () {
         provider.switchMapType();
       },

@@ -36,6 +36,8 @@ dependencies:
   geocoder: ^0.2.1
   flutter_polyline_points: ^0.2.4
   maps_toolkit: ^1.1.0+2
+  google_maps_webservice: ^0.0.18
+
 
 
 
